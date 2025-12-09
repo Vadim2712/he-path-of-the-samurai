@@ -8,7 +8,7 @@ use crate::write_cache;
 
 // APOD
 pub async fn fetch_apod(st: &AppState) -> Result<()> {
-    let url = "https://api.nasa.gov/planetary/apod";
+    let url = &st.apod_url;
     let client = reqwest::Client::builder().timeout(std::time::Duration::from_secs(30)).build()?;
     let mut req = client.get(url).query(&[("thumbs","true")]);
     if !st.nasa_key.is_empty() { req = req.query(&[("api_key",&st.nasa_key)]); }
@@ -20,7 +20,7 @@ pub async fn fetch_apod(st: &AppState) -> Result<()> {
 pub async fn fetch_neo_feed(st: &AppState) -> Result<()> {
     let today = Utc::now().date_naive();
     let start = today - chrono::Days::new(2);
-    let url = "https://api.nasa.gov/neo/rest/v1/feed";
+    let url = &st.neo_url;
     let client = reqwest::Client::builder().timeout(std::time::Duration::from_secs(30)).build()?;
     let mut req = client.get(url).query(&[
         ("start_date", start.to_string()),
@@ -39,7 +39,7 @@ pub async fn fetch_donki(st: &AppState) -> Result<()> {
 }
 pub async fn fetch_donki_flr(st: &AppState) -> Result<()> {
     let (from,to) = last_days(5);
-    let url = "https://api.nasa.gov/DONKI/FLR";
+    let url = &st.donki_flr_url;
     let client = reqwest::Client::builder().timeout(std::time::Duration::from_secs(30)).build()?;
     let mut req = client.get(url).query(&[("startDate",from),("endDate",to)]);
     if !st.nasa_key.is_empty() { req = req.query(&[("api_key",&st.nasa_key)]); }
@@ -48,7 +48,7 @@ pub async fn fetch_donki_flr(st: &AppState) -> Result<()> {
 }
 pub async fn fetch_donki_cme(st: &AppState) -> Result<()> {
     let (from,to) = last_days(5);
-    let url = "https://api.nasa.gov/DONKI/CME";
+    let url = &st.donki_cme_url;
     let client = reqwest::Client::builder().timeout(std::time::Duration::from_secs(30)).build()?;
     let mut req = client.get(url).query(&[("startDate",from),("endDate",to)]);
     if !st.nasa_key.is_empty() { req = req.query(&[("api_key",&st.nasa_key)]); }
