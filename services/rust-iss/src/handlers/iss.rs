@@ -26,7 +26,7 @@ pub async fn last_iss(State(st): State<AppState>)
 
 pub async fn trigger_iss(State(st): State<AppState>)
 -> Result<Json<Value>, ApiError> {
-    fetch_and_store_iss(&st.pool, &st.fallback_url).await
+    fetch_and_store_iss(&st.pool, &st.iss_url).await
         .map_err(ApiError::from)?;
     last_iss(State(st)).await
 }
