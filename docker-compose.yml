@@ -80,10 +80,10 @@ services:
     ports:
       - "8080:80"
 
-  pascal_legacy:
+  js-legacy:
     build:
-      context: ./services/pascal-legacy
-    container_name: pascal_legacy
+      context: ./services/js-legacy
+    container_name: js_legacy
     env_file: .env
     environment:
       CSV_OUT_DIR: ${CSV_OUT_DIR}
@@ -92,6 +92,7 @@ services:
       PGDATABASE: ${PGDATABASE}
       PGUSER: ${PGUSER}
       PGPASSWORD: ${PGPASSWORD}
+      GEN_PERIOD_SEC: ${GEN_PERIOD_SEC:-300}
     depends_on:
       db:
         condition: service_healthy
