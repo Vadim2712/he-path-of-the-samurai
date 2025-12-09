@@ -5,9 +5,21 @@ use sqlx::PgPool;
 #[derive(Clone)]
 pub struct AppState {
     pub pool: PgPool,
-    pub nasa_url: String,          // OSDR
-    pub nasa_key: String,          // ключ NASA
-    pub fallback_url: String,      // ISS where-the-iss
+    pub nasa_url: String,
+    pub nasa_key: String,
+    pub iss_url: String,
+    pub apod_url: String,
+    pub neo_url: String,
+    pub donki_flr_url: String,
+    pub donki_cme_url: String,
+    pub spacex_next_url: String,
+
+    pub jwst_api_url: String,
+    pub jwst_api_key: String,
+    pub astro_api_url: String,
+    pub astro_api_id: String,
+    pub astro_api_secret: String,
+
     pub every_osdr: u64,
     pub every_iss: u64,
     pub every_apod: u64,

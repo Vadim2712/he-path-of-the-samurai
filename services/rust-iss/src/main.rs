@@ -42,7 +42,7 @@ async fn main() -> anyhow::Result<()> {
         let st = state.clone();
         tokio::spawn(async move {
             loop {
-                if let Err(e) = iss::fetch_and_store_iss(&st.pool, &st.fallback_url).await { error!("iss err {e:?}") }
+                if let Err(e) = iss::fetch_and_store_iss(&st.pool, &st.iss_url).await { error!("iss err {e:?}") }
                 tokio::time::sleep(tokio::time::Duration::from_secs(st.every_iss)).await;
             }
         });
