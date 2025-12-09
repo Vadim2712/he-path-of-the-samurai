@@ -2,52 +2,62 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
+use App\Contracts\AstronomyClientInterface;
+use App\Http\Requests\GetAstroEventsRequest;
+use App\Http\Resources\AstroEventResource;
+use App\Jobs\UpdateAstronomyCacheJob;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Cache;
 
 class AstroController extends Controller
 {
-    public function events(Request $r)
+    public function __construct(
+        private readonly AstronomyClientInterface $astroClient
+    ) {}
+
+    /**
+     * Handle the request for astronomical events.
+     *
+     * This endpoint uses an async pattern. It first checks if the data is cached.
+     * If yes, it returns the data immediately.
+     * If no, it dispatches a background job to fetch the data and returns a
+     * 202 Accepted response, prompting the client to retry shortly.
+     *
+     * @param GetAstroEventsRequest $request
+     * @return JsonResponse
+     */
+    public function events(GetAstroEventsRequest $request): JsonResponse
     {
-        $lat  = (float) $r->query('lat', 55.7558);
-        $lon  = (float) $r->query('lon', 37.6176);
-        $days = max(1, min(30, (int) $r->query('days', 7)));
+        $validatedData = $request->validated();
+        $latitude = (float)($validatedData['lat'] ?? 55.75);
+        $longitude = (float)($validatedData['lon'] ?? 37.61);
+        $daysToForecast = 7;
 
-        $from = now('UTC')->toDateString();
-        $to   = now('UTC')->addDays($days)->toDateString();
+        // Using a more readable key generation method
+        $cacheKey = sprintf('astronomy:events:%s:%s:%d:%s',
+            number_format($latitude, 4),
+            number_format($longitude, 4),
+            $daysToForecast,
+            now()->format('Y-m-d')
+        );
 
-        $appId  = env('ASTRO_APP_ID', '');
-        $secret = env('ASTRO_APP_SECRET', '');
-        if ($appId === '' || $secret === '') {
-            return response()->json(['error' => 'Missing ASTRO_APP_ID/ASTRO_APP_SECRET'], 500);
+        // Check if the data is already in the cache
+        if (Cache::has($cacheKey)) {
+            $events = $this->astroClient->getEvents($latitude, $longitude, $daysToForecast);
+
+            return response()->json([
+                'status' => 'COMPLETED',
+                'data' => AstroEventResource::collection($events)
+            ]);
         }
 
-        $auth = base64_encode($appId . ':' . $secret);
-        $url  = 'https://api.astronomyapi.com/api/v2/bodies/events?' . http_build_query([
-            'latitude'  => $lat,
-            'longitude' => $lon,
-            'from'      => $from,
-            'to'        => $to,
-        ]);
+        // If not cached, dispatch a job and tell the client to check back
+        UpdateAstronomyCacheJob::dispatch($latitude, $longitude);
 
-        $ch = curl_init($url);
-        curl_setopt_array($ch, [
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_HTTPHEADER     => [
-                'Authorization: Basic ' . $auth,
-                'Content-Type: application/json',
-                'User-Agent: monolith-iss/1.0'
-            ],
-            CURLOPT_TIMEOUT        => 25,
-        ]);
-        $raw  = curl_exec($ch);
-        $code = curl_getinfo($ch, CURLINFO_RESPONSE_CODE) ?: 0;
-        $err  = curl_error($ch);
-        curl_close($ch);
-
-        if ($raw === false || $code >= 400) {
-            return response()->json(['error' => $err ?: ("HTTP " . $code), 'code' => $code, 'raw' => $raw], 403);
-        }
-        $json = json_decode($raw, true);
-        return response()->json($json ?? ['raw' => $raw]);
+        return response()->json([
+            'status' => 'PROCESSING',
+            'message' => 'Data is being fetched in the background. Please try again in a few seconds.',
+            'retry_after' => 10 // Suggest a longer retry for cold caches
+        ], 202);
     }
 }
