@@ -1,7 +1,9 @@
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
+use axum::Json;
 use serde::Serialize;
 use tracing::error;
+use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize)]
 pub enum ApiError {
@@ -44,7 +46,7 @@ impl ApiError {
         ApiError::InternalServerError {
             code: "INTERNAL_SERVER_ERROR".to_string(),
             message,
-            trace_id: uuid::Uuid::new_v4().to_string(),
+            trace_id: Uuid::new_v4().to_string(),
         }
     }
 
@@ -52,7 +54,7 @@ impl ApiError {
         ApiError::NotFound {
             code: "NOT_FOUND".to_string(),
             message,
-            trace_id: uuid::Uuid::new_v4().to_string(),
+            trace_id: Uuid::new_v4().to_string(),
         }
     }
 
@@ -93,6 +95,12 @@ impl From<sqlx::Error> for ApiError {
 
 impl From<reqwest::Error> for ApiError {
     fn from(err: reqwest::Error) -> Self {
+        ApiError::new_internal_error(err.to_string())
+    }
+}
+
+impl From<redis::RedisError> for ApiError {
+    fn from(err: redis::RedisError) -> Self {
         ApiError::new_internal_error(err.to_string())
     }
 }

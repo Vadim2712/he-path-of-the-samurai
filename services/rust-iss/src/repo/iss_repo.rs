@@ -1,30 +1,42 @@
 use anyhow::Result;
-use chrono::{DateTime, Utc};
 use serde_json::Value;
-use sqlx::{PgPool, Row};
+use sqlx::PgPool;
+use crate::domain::models::IssFetchLog;
 
-pub async fn get_last_iss(pool: &PgPool) -> Result<Option<Value>> {
-    let row_opt = sqlx::query(
-        "SELECT id, fetched_at, source_url, payload
-         FROM iss_fetch_log
-         ORDER BY id DESC LIMIT 1"
-    ).fetch_optional(pool).await?;
-
-    if let Some(row) = row_opt {
-        let id: i64 = row.get("id");
-        let fetched_at: DateTime<Utc> = row.get::<DateTime<Utc>, _>("fetched_at");
-        let source_url: String = row.get("source_url");
-        let payload: Value = row.try_get("payload").unwrap_or(serde_json::json!({}));
-        Ok(Some(serde_json::json!({
-            "id": id, "fetched_at": fetched_at, "source_url": source_url, "payload": payload
-        })))
-    } else {
-        Ok(None)
-    }
+/// Repository for managing ISS fetch logs in the database.
+#[derive(Clone)]
+pub struct IssRepo {
+    pool: PgPool,
 }
 
-pub async fn get_iss_trend_data(pool: &PgPool) -> Result<Vec<sqlx::postgres::PgRow>> {
-    let rows = sqlx::query("SELECT fetched_at, payload FROM iss_fetch_log ORDER BY id DESC LIMIT 2")
-        .fetch_all(pool).await?;
-    Ok(rows)
+impl IssRepo {
+    pub fn new(pool: PgPool) -> Self {
+        Self { pool }
+    }
+
+    /// Creates a new log entry for an ISS fetch.
+    pub async fn create_log(&self, url: &str, payload: &Value) -> Result<()> {
+        sqlx::query("INSERT INTO iss_fetch_log (source_url, payload) VALUES ($1, $2)")
+            .bind(url)
+            .bind(payload)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
+    /// Gets the most recent ISS log entry.
+    pub async fn get_last(&self) -> Result<Option<Value>> {
+        let result: Option<IssFetchLog> = sqlx::query_as("SELECT * FROM iss_fetch_log ORDER BY id DESC LIMIT 1")
+            .fetch_optional(&self.pool)
+            .await?;
+        Ok(result.map(|log| serde_json::to_value(log).unwrap_or_default()))
+    }
+
+    /// Gets the last two ISS log entries for trend calculation.
+    pub async fn get_last_two(&self) -> Result<Vec<IssFetchLog>> {
+        let logs: Vec<IssFetchLog> = sqlx::query_as("SELECT * FROM iss_fetch_log ORDER BY id DESC LIMIT 2")
+            .fetch_all(&self.pool)
+            .await?;
+        Ok(logs)
+    }
 }

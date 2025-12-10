@@ -1,10 +1,17 @@
 use chrono::{DateTime, Utc};
 use serde::Serialize;
-use sqlx::PgPool;
+use serde_json::Value;
+use sqlx::{FromRow, PgPool};
+
+use crate::repo::{cache_repo::CacheRepo, iss_repo::IssRepo, osdr_repo::OsdrRepo};
 
 #[derive(Clone)]
 pub struct AppState {
     pub pool: PgPool,
+    pub iss_repo: IssRepo,
+    pub osdr_repo: OsdrRepo,
+    pub cache_repo: CacheRepo,
+    
     pub nasa_url: String,
     pub nasa_key: String,
     pub iss_url: String,
@@ -30,7 +37,16 @@ pub struct AppState {
 }
 
 #[derive(Serialize)]
-pub struct Health { status: &'static str, now: DateTime<Utc> }
+pub struct Health { pub status: &'static str, pub now: DateTime<Utc> }
+
+#[derive(Serialize, FromRow, Debug)]
+pub struct IssFetchLog {
+    pub id: i64,
+    pub fetched_at: DateTime<Utc>,
+    pub source_url: String,
+    pub payload: Value,
+}
+
 
 #[derive(Serialize)]
 pub struct Trend {

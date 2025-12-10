@@ -1,7 +1,6 @@
-use axum::{
-    http::StatusCode,
-    Json,
-};
+use axum::{http::StatusCode, Json};
+use chrono::Utc;
+
 use crate::domain::error::ApiError;
 use crate::domain::models::Health;
 

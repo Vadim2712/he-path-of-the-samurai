@@ -1,33 +1,37 @@
-use anyhow::Result;
-use chrono::{DateTime, Utc};
+use r2d2_redis::redis::Commands;
+use r2d2::Pool;
+use r2d2_redis::RedisConnectionManager;
+use redis::RedisResult;
 use serde_json::Value;
-use sqlx::{PgPool, Row};
 
-pub async fn get_latest_space_cache(pool: &PgPool, src: &str) -> Result<Option<Value>> {
-    let row = sqlx::query(
-        "SELECT fetched_at, payload FROM space_cache
-         WHERE source = $1 ORDER BY id DESC LIMIT 1"
-    ).bind(src).fetch_optional(pool).await?;
+/// Repository for accessing the Redis cache.
+#[derive(Clone)]
+pub struct CacheRepo {
+    pool: Pool<RedisConnectionManager>,
+}
 
-    if let Some(r) = row {
-        let fetched_at: DateTime<Utc> = r.get("fetched_at");
-        let payload: Value = r.get("payload");
-        Ok(Some(serde_json::json!({ "source": src, "fetched_at": fetched_at, "payload": payload })))
-    } else {
-        Ok(None)
+impl CacheRepo {
+    /// Creates a new CacheRepo with a connection pool.
+    pub fn new(pool: Pool<RedisConnectionManager>) -> Self {
+        Self { pool }
     }
-}
 
-pub async fn get_latest_from_cache(pool: &PgPool, src: &str) -> Value {
-    sqlx::query("SELECT fetched_at, payload FROM space_cache WHERE source=$1 ORDER BY id DESC LIMIT 1")
-        .bind(src)
-        .fetch_optional(pool).await.ok().flatten()
-        .map(|r| serde_json::json!({"at": r.get::<DateTime<Utc>,_>("fetched_at"), "payload": r.get::<Value,_>("payload")}))
-        .unwrap_or(serde_json::json!({}))
-}
+    /// Saves a JSON value to the cache with a given key.
+    pub fn save(&self, key: &str, value: &Value) -> RedisResult<()> {
+        let mut conn = self.pool.get().map_err(|e| redis::RedisError::from((redis::ErrorKind::IoError, "Pool Error", e.to_string())))?;
+        let json_string = serde_json::to_string(value).map_err(|e| redis::RedisError::from((redis::ErrorKind::TypeError, "JSON Serialize Error", e.to_string())))?;
+        
+        // Manually map the error to fix the type conflict
+        conn.set(key, json_string).map_err(|e| redis::RedisError::from((redis::ErrorKind::ResponseError, "Redis SET failed", e.to_string())))
+    }
 
-pub async fn get_osdr_count(pool: &PgPool) -> Result<i64> {
-    let osdr_count: i64 = sqlx::query("SELECT count(*) AS c FROM osdr_items")
-        .fetch_one(pool).await.map(|r| r.get::<i64,_>("c"))?;
-    Ok(osdr_count)
+    /// Retrieves a JSON value from the cache by key.
+    pub fn get_latest(&self, key: &str) -> RedisResult<Value> {
+        let mut conn = self.pool.get().map_err(|e| redis::RedisError::from((redis::ErrorKind::IoError, "Pool Error", e.to_string())))?;
+
+        // Manually map the error to fix the type conflict
+        let result: String = conn.get(key).map_err(|e| redis::RedisError::from((redis::ErrorKind::ResponseError, "Redis GET failed", e.to_string())))?;
+        
+        serde_json::from_str(&result).map_err(|e| redis::RedisError::from((redis::ErrorKind::TypeError, "JSON Parse Error", e.to_string())))
+    }
 }

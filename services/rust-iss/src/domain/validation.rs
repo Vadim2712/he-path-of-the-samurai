@@ -1,5 +1,5 @@
 use serde::Deserialize;
-use serde_valid::Validate;
+use serde_valid_derive::Validate;
 
 #[derive(Debug, Deserialize, Validate)]
 pub struct OsdrItemValidation {

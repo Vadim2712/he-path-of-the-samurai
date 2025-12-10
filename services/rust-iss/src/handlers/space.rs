@@ -1,75 +1,72 @@
 use std::collections::HashMap;
-
 use axum::{
     extract::{Path, Query, State},
     Json,
 };
-use serde_json::Value;
-
-use crate::config::AppState;
-use crate::services::space_service::latest_from_cache;
-use crate::repo::cache_repo::{get_latest_space_cache, get_osdr_count};
-use crate::clients::{nasa, spacex};
+use serde_json::{json, Value};
+use crate::domain::models::AppState;
 use crate::domain::error::ApiError;
+use crate::services::space_service::SpaceService;
 
-pub async fn space_latest(Path(src): Path<String>, State(st): State<AppState>)
--> Result<Json<Value>, ApiError> {
-    let row_opt = get_latest_space_cache(&st.pool, &src).await
-     .map_err(ApiError::from)?;
-
-    if let Some(payload) = row_opt {
-        return Ok(Json(payload));
+/// Handler to get the latest cached data for a specific source.
+pub async fn space_latest(
+    Path(src): Path<String>,
+    State(state): State<AppState>,
+) -> Result<Json<Value>, ApiError> {
+    match state.cache_repo.get_latest(&src) {
+        Ok(value) => Ok(Json(value)),
+        Err(_) => Ok(Json(json!({ "source": src, "message": "no data found in cache" }))),
     }
-    Ok(Json(serde_json::json!({ "source": src, "message":"no data" })))
 }
 
-pub async fn space_refresh(Query(q): Query<HashMap<String,String>>, State(st): State<AppState>)
--> Result<Json<Value>, ApiError> {
-    let list = q.get("src").cloned().unwrap_or_else(|| "apod,neo,flr,cme,spacex".to_string());
-    let mut done = Vec::new();
-    for s in list.split(',').map(|x| x.trim().to_lowercase()) {
-        match s.as_str() {
-            "apod"   => { let _ = nasa::fetch_apod(&st).await?;       done.push("apod"); }
-            "neo"    => { let _ = nasa::fetch_neo_feed(&st).await?;   done.push("neo"); }
-            "flr"    => { let _ = nasa::fetch_donki_flr(&st).await?;  done.push("flr"); }
-            "cme"    => { let _ = nasa::fetch_donki_cme(&st).await?;  done.push("cme"); }
-            "spacex" => { let _ = spacex::fetch_spacex_next(&st).await?; done.push("spacex"); }
-            _ => {}
+/// Handler to trigger a refresh of cached data for specified sources.
+pub async fn space_refresh(
+    Query(q): Query<HashMap<String, String>>,
+    State(state): State<AppState>,
+) -> Result<Json<Value>, ApiError> {
+    let service = SpaceService::new(state);
+    let sources_query = q.get("src").cloned().unwrap_or_else(|| "apod,neo,donki,spacex".to_string());
+    
+    let mut refreshed = Vec::new();
+    let sources_to_refresh = sources_query.split(',').map(|s| s.trim().to_lowercase());
+
+    for source in sources_to_refresh {
+        let result = match source.as_str() {
+            "apod" => service.fetch_apod().await,
+            "neo" => service.fetch_neo().await,
+            "donki" | "flr" | "cme" => service.fetch_donki().await,
+            "spacex" => service.fetch_spacex_next().await,
+            _ => continue,
+        };
+
+        if result.is_ok() {
+            refreshed.push(source);
         }
     }
-    Ok(Json(serde_json::json!({ "refreshed": done })))
+
+    Ok(Json(json!({ "refreshed_sources": refreshed })))
 }
 
-use crate::clients::{nasa, spacex};
+/// Handler to get a summary of all cached space data.
+pub async fn space_summary(
+    State(state): State<AppState>,
+) -> Result<Json<Value>, ApiError> {
+    let apod_val = state.cache_repo.get_latest("apod").unwrap_or_default();
+    let neo_val = state.cache_repo.get_latest("neo").unwrap_or_default();
+    let flr_val = state.cache_repo.get_latest("flr").unwrap_or_default();
+    let cme_val = state.cache_repo.get_latest("cme").unwrap_or_default();
+    let spacex_val = state.cache_repo.get_latest("spacex").unwrap_or_default();
 
-use crate::domain::error::ApiError;
+    let iss_val = state.iss_repo.get_last().await.map_err(ApiError::from)?;
+    let osdr_count = state.osdr_repo.count().await.map_err(ApiError::from)?;
 
-use crate::repo::iss_repo::get_last_iss;
-
-
-
-pub async fn space_summary(State(st): State<AppState>)
-
--> Result<Json<Value>, ApiError> {
-
-    let apod   = latest_from_cache(&st.pool, "apod").await;
-
-    let neo    = latest_from_cache(&st.pool, "neo").await;
-
-    let flr    = latest_from_cache(&st.pool, "flr").await;
-
-    let cme    = latest_from_cache(&st.pool, "cme").await;
-
-    let spacex = latest_from_cache(&st.pool, "spacex").await;
-
-
-
-    let iss_last = get_last_iss(&st.pool).await
-
-        .map_err(ApiError::from)?;
-
-
-
-    let osdr_count = get_osdr_count(&st.pool).await
-
-     .map_err(ApiError::from)?;
+    Ok(Json(json!({
+        "apod": apod_val,
+        "neo": neo_val,
+        "flr": flr_val,
+        "cme": cme_val,
+        "spacex": spacex_val,
+        "iss": iss_val,
+        "osdr_count": osdr_count,
+    })))
+}

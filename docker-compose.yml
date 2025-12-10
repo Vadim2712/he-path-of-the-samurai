@@ -31,6 +31,7 @@ services:
   rust_iss:
     build:
       context: ./services/rust-iss
+    env_file: .env
     depends_on:
       db:
         condition: service_healthy

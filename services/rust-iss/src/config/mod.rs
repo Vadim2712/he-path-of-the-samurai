@@ -1,13 +1,28 @@
 use sqlx::PgPool;
+use r2d2_redis::RedisConnectionManager;
+use r2d2::Pool;
 
 use crate::domain::models::AppState;
+use crate::repo::{cache_repo::CacheRepo, iss_repo::IssRepo, osdr_repo::OsdrRepo};
 
 pub async fn new(pool: PgPool) -> AppState {
     dotenvy::dotenv().ok();
 
+    // Redis Pool
+    let redis_url = env_str("REDIS_URL", "redis://redis_cache:6379/");
+    let manager = RedisConnectionManager::new(redis_url).expect("Failed to create Redis manager");
+    let redis_pool = Pool::builder()
+        .build(manager)
+        .expect("Failed to build Redis pool");
+
+    // Repositories
+    let iss_repo = IssRepo::new(pool.clone());
+    let osdr_repo = OsdrRepo::new(pool.clone());
+    let cache_repo = CacheRepo::new(redis_pool);
+
     // NASA
     let nasa_url = env_str("NASA_API_URL", "https://visualization.osdr.nasa.gov/biodata/api/v2/datasets/?format=json");
-    let nasa_key = env_str("NASA_API_KEY", "");
+    let nasa_key = env_str("NASA_API_KEY", "DEMO_KEY");
     let apod_url = env_str("APOD_API_URL", "https://api.nasa.gov/planetary/apod");
     let neo_url = env_str("NEO_API_URL", "https://api.nasa.gov/neo/rest/v1/feed");
     let donki_flr_url = env_str("DONKI_FLR_API_URL", "https://api.nasa.gov/DONKI/FLR");
@@ -35,8 +50,11 @@ pub async fn new(pool: PgPool) -> AppState {
 
     AppState {
         pool,
+        iss_repo,
+        osdr_repo,
+        cache_repo,
         nasa_url,
-        nasa_key,
+        nasa_key: nasa_key,
         iss_url,
         apod_url,
         neo_url,
