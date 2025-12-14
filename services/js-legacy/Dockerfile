@@ -18,9 +18,11 @@ RUN npm install
 # Copy the rest of the application code
 COPY . .
 
-# Copy the entrypoint script and make it executable
+# Copy the entrypoint and cron job scripts and make them executable
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
+COPY cron_job.sh /usr/src/app/cron_job.sh
+RUN chmod +x /usr/src/app/cron_job.sh
 
 # Run the entrypoint script
 ENTRYPOINT ["/entrypoint.sh"]

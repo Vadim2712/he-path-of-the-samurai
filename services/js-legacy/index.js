@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { Pool } = require('pg');
+const copyFrom = require('pg-copy-streams').from;
 const exceljs = require('exceljs');
 const csv = require('fast-csv');
 
@@ -52,7 +53,7 @@ function saveCsv(filepath, data) {
                 data.recordedAt.toISOString(),
                 data.voltage.toFixed(2),
                 data.temp.toFixed(2),
-                data.isValid ? 'ИСТИНА' : 'ЛОЖЬ',
+                data.isValid ? 'true' : 'false',
                 data.sourceFile
             ]
         ];
@@ -115,31 +116,33 @@ async function importToDb(csvFilepath) {
     const client = await pool.connect();
     log('Successfully connected to the database.');
 
-    const stream = client.query(
-        `COPY telemetry_legacy(recorded_at, voltage, temp, is_valid, source_file) FROM STDIN WITH (FORMAT csv, HEADER true)`
-    );
+    return new Promise((resolve, reject) => {
+        const stream = client.query(
+            copyFrom(`COPY telemetry_legacy(recorded_at, voltage, temp, is_valid, source_file) FROM STDIN WITH (FORMAT csv, HEADER true)`)
+        );
+        const fileStream = fs.createReadStream(csvFilepath);
 
-    const fileStream = fs.createReadStream(csvFilepath);
-
-    await new Promise((resolve, reject) => {
         fileStream.on('error', (err) => {
             error('Error reading CSV file for DB import.', err);
             client.release();
             pool.end();
             reject(err);
         });
+
         stream.on('error', (err) => {
             error('Error during database COPY operation.', err);
             client.release();
             pool.end();
             reject(err);
         });
+
         stream.on('finish', () => {
             log('Database import finished successfully.');
             client.release();
             pool.end();
             resolve();
         });
+
         fileStream.pipe(stream);
     });
 }
