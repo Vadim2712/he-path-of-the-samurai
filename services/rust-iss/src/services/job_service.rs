@@ -2,28 +2,47 @@ use std::sync::Arc;
 use tokio::time::{self, Duration};
 use tracing::{error, info};
 
-use crate::domain::models::AppState;
 use crate::services::{
-    iss_service::IssService,
-    osdr_service::OsdrService,
-    space_service::SpaceService,
+    iss_service::IssService, osdr_service::OsdrService, space_service::SpaceService,
 };
 
 /// Service responsible for managing all periodic background jobs.
+#[derive(Clone)]
 pub struct JobService {
     iss_service: Arc<IssService>,
     osdr_service: Arc<OsdrService>,
     space_service: Arc<SpaceService>,
-    state: AppState,
+    every_iss: u64,
+    every_osdr: u64,
+    every_apod: u64,
+    every_neo: u64,
+    every_donki: u64,
+    every_spacex: u64,
 }
 
 impl JobService {
-    pub fn new(state: AppState) -> Self {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        iss_service: Arc<IssService>,
+        osdr_service: Arc<OsdrService>,
+        space_service: Arc<SpaceService>,
+        every_iss: u64,
+        every_osdr: u64,
+        every_apod: u64,
+        every_neo: u64,
+        every_donki: u64,
+        every_spacex: u64,
+    ) -> Self {
         Self {
-            iss_service: Arc::new(IssService::new(&state)),
-            osdr_service: Arc::new(OsdrService::new(&state)),
-            space_service: Arc::new(SpaceService::new(state.clone())),
-            state,
+            iss_service,
+            osdr_service,
+            space_service,
+            every_iss,
+            every_osdr,
+            every_apod,
+            every_neo,
+            every_donki,
+            every_spacex,
         }
     }
 
@@ -43,8 +62,9 @@ impl JobService {
 
     fn spawn_iss_job(&self) {
         let service = self.iss_service.clone();
-        let period = self.state.every_iss;
+        let period = self.every_iss;
         tokio::spawn(async move {
+            if period == 0 { return; }
             let mut interval = time::interval(Duration::from_secs(period));
             loop {
                 interval.tick().await;
@@ -57,8 +77,9 @@ impl JobService {
 
     fn spawn_osdr_job(&self) {
         let service = self.osdr_service.clone();
-        let period = self.state.every_osdr;
+        let period = self.every_osdr;
         tokio::spawn(async move {
+            if period == 0 { return; }
             let mut interval = time::interval(Duration::from_secs(period));
             loop {
                 interval.tick().await;
@@ -68,11 +89,12 @@ impl JobService {
             }
         });
     }
-    
+
     fn spawn_apod_job(&self) {
         let service = self.space_service.clone();
-        let period = self.state.every_apod;
+        let period = self.every_apod;
         tokio::spawn(async move {
+            if period == 0 { return; }
             let mut interval = time::interval(Duration::from_secs(period));
             loop {
                 interval.tick().await;
@@ -82,11 +104,12 @@ impl JobService {
             }
         });
     }
-    
+
     fn spawn_neo_job(&self) {
         let service = self.space_service.clone();
-        let period = self.state.every_neo;
+        let period = self.every_neo;
         tokio::spawn(async move {
+            if period == 0 { return; }
             let mut interval = time::interval(Duration::from_secs(period));
             loop {
                 interval.tick().await;
@@ -96,11 +119,12 @@ impl JobService {
             }
         });
     }
-    
+
     fn spawn_donki_job(&self) {
         let service = self.space_service.clone();
-        let period = self.state.every_donki;
+        let period = self.every_donki;
         tokio::spawn(async move {
+            if period == 0 { return; }
             let mut interval = time::interval(Duration::from_secs(period));
             loop {
                 interval.tick().await;
@@ -113,8 +137,9 @@ impl JobService {
 
     fn spawn_spacex_job(&self) {
         let service = self.space_service.clone();
-        let period = self.state.every_spacex;
+        let period = self.every_spacex;
         tokio::spawn(async move {
+            if period == 0 { return; }
             let mut interval = time::interval(Duration::from_secs(period));
             loop {
                 interval.tick().await;

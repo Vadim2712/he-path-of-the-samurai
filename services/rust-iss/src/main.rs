@@ -1,4 +1,5 @@
 use sqlx::postgres::PgPoolOptions;
+use std::net::SocketAddr;
 use std::sync::Arc;
 use tracing::info;
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
@@ -12,7 +13,6 @@ mod services;
 
 use crate::repo::db::init_db;
 use crate::routes::create_router;
-use crate::services::job_service::JobService;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -32,14 +32,18 @@ async fn main() -> anyhow::Result<()> {
     let state = config::new(pool.clone()).await;
 
     // Spawn all background jobs
-    let job_service = Arc::new(JobService::new(state.clone()));
+    let job_service = Arc::new(state.job_service.clone());
     job_service.spawn_all_jobs();
-    
+
     // Create and run the Axum web server
     let app = create_router(state);
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", 3000)).await?;
     info!("rust_iss listening on 0.0.0.0:3000");
-    axum::serve(listener, app.into_make_service()).await?;
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .await?;
 
     Ok(())
 }

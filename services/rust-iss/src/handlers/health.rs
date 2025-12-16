@@ -1,4 +1,4 @@
-use axum::{http::StatusCode, Json};
+use axum::Json;
 use chrono::Utc;
 
 use crate::domain::error::ApiError;

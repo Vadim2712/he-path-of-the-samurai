@@ -1,7 +1,5 @@
 use anyhow::Result;
 use serde_json::Value;
-use crate::domain::models::AppState;
-use crate::domain::error::ApiError;
 use crate::domain::models::Trend;
 use crate::repo::iss_repo::IssRepo;
 
@@ -14,11 +12,11 @@ pub struct IssService {
 }
 
 impl IssService {
-    pub fn new(state: &AppState) -> Self {
+    pub fn new(repo: IssRepo, iss_url: String) -> Self {
         Self {
-            repo: state.iss_repo.clone(),
+            repo,
             client: reqwest::Client::new(),
-            iss_url: state.iss_url.clone(),
+            iss_url,
         }
     }
 

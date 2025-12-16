@@ -22,8 +22,9 @@ Route::get('/page/{slug}', [CmsController::class, 'page']);
 
 // API proxies
 Route::prefix('api')->group(function () {
-    // Proxy ISS requests to the rust-iss service
-    Route::get('/iss/{path}', [ProxyController::class, 'proxy'])->where('path', '.*');
+    // ISS data endpoints with caching
+    Route::get('/iss/last', [IssController::class, 'last']);
+    Route::get('/iss/trend', [IssController::class, 'trend']);
     
     // Proxy for JWST feed
     Route::get('/jwst', [DashboardController::class, 'jwstFeed']);

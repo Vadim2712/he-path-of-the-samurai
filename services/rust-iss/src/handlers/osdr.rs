@@ -7,12 +7,11 @@ use tracing::info;
 
 use crate::domain::models::AppState;
 use crate::domain::error::ApiError;
-use crate::services::osdr_service::OsdrService;
 
 /// Asynchronously triggers a sync of the OSDR data.
 pub async fn osdr_sync(State(state): State<AppState>) -> Result<Json<Value>, ApiError> {
+    let service = state.osdr_service.clone();
     tokio::spawn(async move {
-        let service = OsdrService::new(&state);
         info!("Starting background OSDR sync...");
         if let Ok(count) = service.fetch_and_store_osdr().await {
             info!("OSDR background sync completed. Upserted {} records.", count);

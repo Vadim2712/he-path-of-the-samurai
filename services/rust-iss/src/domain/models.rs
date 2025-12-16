@@ -4,6 +4,10 @@ use serde_json::Value;
 use sqlx::{FromRow, PgPool};
 
 use crate::repo::{cache_repo::CacheRepo, iss_repo::IssRepo, osdr_repo::OsdrRepo};
+use crate::services::{
+    iss_service::IssService, job_service::JobService, osdr_service::OsdrService,
+    space_service::SpaceService,
+};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -11,6 +15,11 @@ pub struct AppState {
     pub iss_repo: IssRepo,
     pub osdr_repo: OsdrRepo,
     pub cache_repo: CacheRepo,
+
+    pub iss_service: IssService,
+    pub osdr_service: OsdrService,
+    pub space_service: SpaceService,
+    pub job_service: JobService,
     
     pub nasa_url: String,
     pub nasa_key: String,

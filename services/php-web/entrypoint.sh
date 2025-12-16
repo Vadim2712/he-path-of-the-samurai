@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 set -e
 
-# Ensure the application key is generated
-php artisan key:generate --force
+# Set correct permissions for storage and cache
+chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
+chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
 
 # Discover and cache packages
 php artisan package:discover --ansi

@@ -6,7 +6,6 @@ use axum::{
 use serde_json::{json, Value};
 use crate::domain::models::AppState;
 use crate::domain::error::ApiError;
-use crate::services::space_service::SpaceService;
 
 /// Handler to get the latest cached data for a specific source.
 pub async fn space_latest(
@@ -24,7 +23,6 @@ pub async fn space_refresh(
     Query(q): Query<HashMap<String, String>>,
     State(state): State<AppState>,
 ) -> Result<Json<Value>, ApiError> {
-    let service = SpaceService::new(state);
     let sources_query = q.get("src").cloned().unwrap_or_else(|| "apod,neo,donki,spacex".to_string());
     
     let mut refreshed = Vec::new();
@@ -32,10 +30,10 @@ pub async fn space_refresh(
 
     for source in sources_to_refresh {
         let result = match source.as_str() {
-            "apod" => service.fetch_apod().await,
-            "neo" => service.fetch_neo().await,
-            "donki" | "flr" | "cme" => service.fetch_donki().await,
-            "spacex" => service.fetch_spacex_next().await,
+            "apod" => state.space_service.fetch_apod().await,
+            "neo" => state.space_service.fetch_neo().await,
+            "donki" | "flr" | "cme" => state.space_service.fetch_donki().await,
+            "spacex" => state.space_service.fetch_spacex_next().await,
             _ => continue,
         };
 

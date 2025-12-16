@@ -2,7 +2,6 @@ use anyhow::Result;
 use serde_json::Value;
 use tracing::error;
 
-use crate::domain::models::AppState;
 use crate::domain::utils::{s_pick, t_pick};
 use crate::domain::validation::OsdrItemValidation;
 use crate::repo::osdr_repo::OsdrRepo;
@@ -16,11 +15,11 @@ pub struct OsdrService {
 }
 
 impl OsdrService {
-    pub fn new(state: &AppState) -> Self {
+    pub fn new(repo: OsdrRepo, nasa_url: String) -> Self {
         Self {
-            repo: state.osdr_repo.clone(),
+            repo,
             client: reqwest::Client::new(),
-            nasa_url: state.nasa_url.clone(),
+            nasa_url,
         }
     }
 

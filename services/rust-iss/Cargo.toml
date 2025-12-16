@@ -23,4 +23,6 @@ r2d2_redis = "0.14.0"
 serde_valid = "0.15.0"
 serde_valid_derive = "0.15.0"
 uuid = { version = "1", features = ["v4"] }
+tower_governor = { version = "0.5", features = ["axum"] }
+governor = "0.5"
 

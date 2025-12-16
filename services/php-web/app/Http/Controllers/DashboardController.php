@@ -2,21 +2,21 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Cache;
-use App\Support\JwstHelper;
 use App\Contracts\AstronomyClientInterface;
+use App\Services\JwstService;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class DashboardController extends Controller
 {
     /**
      * The dashboard controller constructor.
-     * Injects the Astronomy client to fetch celestial events.
      */
     public function __construct(
-        private readonly AstronomyClientInterface $astronomyService
+        private readonly AstronomyClientInterface $astronomyService,
+        private readonly JwstService $jwstService
     ) {}
 
     /**
@@ -26,7 +26,7 @@ class DashboardController extends Controller
     {
         // --- Fetch ISS Data ---
         $issData = Cache::remember('dashboard:iss_position', 10, function () {
-            $rustServiceUrl = getenv('RUST_BASE') ?: 'http://rust_iss:3000';
+            $rustServiceUrl = config('services.rust_iss.base_uri');
             try {
                 $response = Http::timeout(3)->get("$rustServiceUrl/last");
                 return $response->failed() ? [] : array_change_key_case($response->json(), CASE_LOWER);
@@ -38,7 +38,7 @@ class DashboardController extends Controller
 
         // --- Fetch ISS Trend Data ---
         $issTrend = Cache::remember('dashboard:iss_trend', 35, function () {
-            $rustServiceUrl = getenv('RUST_BASE') ?: 'http://rust_iss:3000';
+            $rustServiceUrl = config('services.rust_iss.base_uri');
             try {
                 $response = Http::timeout(3)->get("$rustServiceUrl/iss/trend");
                 return $response->failed() ? [] : $response->json();
@@ -65,29 +65,7 @@ class DashboardController extends Controller
         });
 
         // --- Fetch JWST Gallery Images ---
-        $jwstImages = Cache::remember('dashboard:jwst_gallery', 300, function () {
-            try {
-                $jwstHelper = new JwstHelper();
-                $apiResponse = $jwstHelper->get('all/type/jpg', ['page' => 1, 'perPage' => 9]);
-                $imageList = $apiResponse['body'] ?? ($apiResponse['data'] ?? []);
-                
-                $formattedImages = [];
-                foreach ($imageList as $item) {
-                    $imageUrl = JwstHelper::pickImageUrl($item);
-                    if ($imageUrl) {
-                        $formattedImages[] = [
-                            'url' => $imageUrl,
-                            'title' => $item['details']['mission'] ?? 'JWST Image',
-                            'id' => $item['id'] ?? uniqid(),
-                        ];
-                    }
-                }
-                return $formattedImages;
-            } catch (\Exception $e) {
-                Log::error('Dashboard failed to fetch JWST images.', ['error' => $e->getMessage()]);
-                return [];
-            }
-        });
+        $jwstImages = $this->jwstService->getDashboardImages();
 
         return view('dashboard', [
             'iss' => $issData,
@@ -98,53 +76,11 @@ class DashboardController extends Controller
     }
 
     /**
-     * This API endpoint is kept for backward compatibility or direct use by some clients.
-     * It proxies requests to the JWST helper.
+     * Provides a filterable feed of JWST images.
      */
-    public function jwstFeed(Request $r)
+    public function jwstFeed(Request $request)
     {
-        $source = $r->query('source', 'jpg');
-        $suffix = trim((string)$r->query('suffix', ''));
-        $programId = trim((string)$r->query('program', ''));
-        $instrumentFilter = strtoupper(trim((string)$r->query('instrument', '')));
-        $page = max(1, (int)$r->query('page', 1));
-        $perPage = max(1, min(60, (int)$r->query('perPage', 24)));
-
-        $jwstHelper = new JwstHelper();
-
-        $apiPath = 'all/type/jpg';
-        if ($source === 'suffix' && $suffix !== '') $apiPath = 'all/suffix/' . ltrim($suffix, '/');
-        if ($source === 'program' && $programId !== '') $apiPath = 'program/id/' . rawurlencode($programId);
-
-        $response = $jwstHelper->get($apiPath, ['page' => $page, 'perPage' => $perPage]);
-        $list = $response['body'] ?? ($response['data'] ?? (is_array($response) ? $response : []));
-
-        $items = [];
-        foreach ($list as $item) {
-            if (!is_array($item)) continue;
-
-            $imageUrl = JwstHelper::pickImageUrl($item);
-            if (!$imageUrl) continue;
-
-            $instrumentList = array_map('strtoupper', array_column($item['details']['instruments'] ?? [], 'instrument'));
-            if ($instrumentFilter && !in_array($instrumentFilter, $instrumentList, true)) continue;
-
-            $items[] = [
-                'url'      => $imageUrl,
-                'obs'      => (string)($item['observation_id'] ?? $item['observationId'] ?? ''),
-                'program'  => (string)($item['program'] ?? ''),
-                'suffix'   => (string)($item['details']['suffix'] ?? $item['suffix'] ?? ''),
-                'inst'     => $instrumentList,
-                'caption'  => 'OBS: ' . ($item['observation_id'] ?? $item['id'] ?? 'N/A'),
-                'link'     => $item['location'] ?? $imageUrl,
-            ];
-            if (count($items) >= $perPage) break;
-        }
-
-        return response()->json([
-            'source' => $apiPath,
-            'count'  => count($items),
-            'items'  => $items,
-        ]);
+        $data = $this->jwstService->getFeed($request);
+        return response()->json($data);
     }
 }

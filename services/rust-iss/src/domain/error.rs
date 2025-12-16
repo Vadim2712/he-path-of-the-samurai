@@ -17,27 +17,46 @@ pub enum ApiError {
         message: String,
         trace_id: String,
     },
-    // Add other custom errors as needed
+}
+
+#[derive(Serialize)]
+struct ErrorBody {
+    code: String,
+    message: String,
+    trace_id: String,
+}
+
+#[derive(Serialize)]
+struct ErrorResponse {
+    ok: bool,
+    error: ErrorBody,
 }
 
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
-        let (status, error_message) = match self {
-            ApiError::InternalServerError { .. } => (StatusCode::INTERNAL_SERVER_ERROR, self.message()),
-            ApiError::NotFound { .. } => (StatusCode::NOT_FOUND, self.message()),
+        let (status, code, message, trace_id) = match self {
+            ApiError::InternalServerError { code, message, trace_id } => {
+                (StatusCode::INTERNAL_SERVER_ERROR, code, message, trace_id)
+            }
+            ApiError::NotFound { code, message, trace_id } => {
+                (StatusCode::NOT_FOUND, code, message, trace_id)
+            }
         };
 
-        // Log the error
-        error!("API Error: {:?}", self);
+        let error_body = ErrorBody {
+            code,
+            message,
+            trace_id: trace_id.clone(),
+        };
 
-        (status, Json(serde_json::json!({
-            "ok": false,
-            "error": {
-                "code": self.code(),
-                "message": error_message,
-                "trace_id": self.trace_id(),
-            }
-        }))).into_response()
+        let error_response = ErrorResponse {
+            ok: false,
+            error: error_body,
+        };
+        
+        error!("API Error: status={}, trace_id={}", status, trace_id);
+
+        (status, Json(error_response)).into_response()
     }
 }
 
@@ -55,27 +74,6 @@ impl ApiError {
             code: "NOT_FOUND".to_string(),
             message,
             trace_id: Uuid::new_v4().to_string(),
-        }
-    }
-
-    pub fn code(&self) -> String {
-        match self {
-            ApiError::InternalServerError { code, .. } => code.clone(),
-            ApiError::NotFound { code, .. } => code.clone(),
-        }
-    }
-
-    pub fn message(&self) -> String {
-        match self {
-            ApiError::InternalServerError { message, .. } => message.clone(),
-            ApiError::NotFound { message, .. } => message.clone(),
-        }
-    }
-
-    pub fn trace_id(&self) -> String {
-        match self {
-            ApiError::InternalServerError { trace_id, .. } => trace_id.clone(),
-            ApiError::NotFound { trace_id, .. } => trace_id.clone(),
         }
     }
 }

@@ -1,5 +1,8 @@
 # Stage 1: Build stage with composer
-FROM composer:2.7.2 AS vendor
+FROM php:8.4-cli-alpine AS vendor
+RUN apk add --no-cache git \
+    && curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer \
+    && composer self-update --2
 
 WORKDIR /app
 
@@ -10,12 +13,17 @@ RUN composer install --no-interaction --no-scripts --no-autoloader
 
 
 # Stage 2: Final application image
-FROM php:8.3-fpm-alpine
+FROM php:8.4-fpm-alpine
 
 WORKDIR /var/www/html
 
 # Install system dependencies
-RUN apk add --no-cache bash curl git unzip rsync postgresql-dev
+RUN apk add --no-cache bash curl git unzip rsync postgresql-dev $PHPIZE_DEPS \
+    && curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer \
+    && composer self-update --2 \
+    && docker-php-ext-install pdo pdo_pgsql pgsql \
+    && pecl install redis \
+    && docker-php-ext-enable pdo_pgsql redis
 
 # Copy application files from the current directory to the container
 COPY . .
