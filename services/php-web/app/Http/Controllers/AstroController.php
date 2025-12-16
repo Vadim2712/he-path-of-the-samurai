@@ -43,7 +43,7 @@ class AstroController extends Controller
 
         // Check if the data is already in the cache
         if (Cache::has($cacheKey)) {
-            $events = $this->astroClient->getEvents($latitude, $longitude, $daysToForecast);
+            $events = Cache::get($cacheKey);
 
             return response()->json([
                 'status' => 'COMPLETED',

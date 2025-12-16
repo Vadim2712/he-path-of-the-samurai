@@ -16,6 +16,7 @@ pub fn create_router(state: AppState) -> Router {
         .unwrap();
 
     Router::new()
+        .route("/ping", get(|| async { "OK" }))
         .route("/health", get(health::health_check))
         // ISS
         .route("/last", get(iss::last_iss))
@@ -28,8 +29,8 @@ pub fn create_router(state: AppState) -> Router {
         .route("/space/:src/latest", get(space::space_latest))
         .route("/space/refresh", get(space::space_refresh))
         .route("/space/summary", get(space::space_summary))
-        .layer(GovernorLayer {
-            config: Arc::new(governor_conf),
-        })
+        // .layer(GovernorLayer {
+        //     config: Arc::new(governor_conf),
+        // })
         .with_state(state)
 }

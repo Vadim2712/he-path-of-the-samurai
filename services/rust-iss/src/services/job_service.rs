@@ -66,6 +66,12 @@ impl JobService {
         tokio::spawn(async move {
             if period == 0 { return; }
             let mut interval = time::interval(Duration::from_secs(period));
+
+            // Run once immediately
+            if let Err(e) = service.fetch_and_store_iss().await {
+                error!("Initial ISS fetch job failed: {:?}", e);
+            }
+
             loop {
                 interval.tick().await;
                 if let Err(e) = service.fetch_and_store_iss().await {
@@ -81,6 +87,12 @@ impl JobService {
         tokio::spawn(async move {
             if period == 0 { return; }
             let mut interval = time::interval(Duration::from_secs(period));
+
+            // Run once immediately
+            if let Err(e) = service.fetch_and_store_osdr().await {
+                error!("Initial OSDR fetch job failed: {:?}", e);
+            }
+
             loop {
                 interval.tick().await;
                 if let Err(e) = service.fetch_and_store_osdr().await {
@@ -96,6 +108,12 @@ impl JobService {
         tokio::spawn(async move {
             if period == 0 { return; }
             let mut interval = time::interval(Duration::from_secs(period));
+
+            // Run once immediately
+            if let Err(e) = service.fetch_apod().await {
+                error!("Initial APOD fetch job failed: {:?}", e);
+            }
+
             loop {
                 interval.tick().await;
                 if let Err(e) = service.fetch_apod().await {
@@ -111,6 +129,12 @@ impl JobService {
         tokio::spawn(async move {
             if period == 0 { return; }
             let mut interval = time::interval(Duration::from_secs(period));
+
+            // Run once immediately
+            if let Err(e) = service.fetch_neo().await {
+                error!("Initial NEO fetch job failed: {:?}", e);
+            }
+
             loop {
                 interval.tick().await;
                 if let Err(e) = service.fetch_neo().await {
@@ -126,6 +150,12 @@ impl JobService {
         tokio::spawn(async move {
             if period == 0 { return; }
             let mut interval = time::interval(Duration::from_secs(period));
+
+            // Run once immediately
+            if let Err(e) = service.fetch_donki().await {
+                error!("Initial DONKI fetch job failed: {:?}", e);
+            }
+
             loop {
                 interval.tick().await;
                 if let Err(e) = service.fetch_donki().await {
@@ -141,6 +171,12 @@ impl JobService {
         tokio::spawn(async move {
             if period == 0 { return; }
             let mut interval = time::interval(Duration::from_secs(period));
+
+            // Run once immediately
+            if let Err(e) = service.fetch_spacex_next().await {
+                error!("Initial SpaceX fetch job failed: {:?}", e);
+            }
+
             loop {
                 interval.tick().await;
                 if let Err(e) = service.fetch_spacex_next().await {

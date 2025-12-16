@@ -32,6 +32,8 @@ services:
     build:
       context: ./services/rust-iss
     env_file: .env
+    environment:
+      - RUST_LOG=trace,sqlx=info
     depends_on:
       db:
         condition: service_healthy
